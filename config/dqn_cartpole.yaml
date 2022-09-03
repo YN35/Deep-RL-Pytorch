@@ -1,0 +1,43 @@
+mainmodel: 'dqn'
+  take_log_params:
+
+
+#追従するモデルと、パラメータを学習するか、そしてモデルパラメータ
+models:
+  root: ''
+  components:
+    q_net:
+      name: 'DQN_network_orig'
+      is_train: True
+      params:
+    cartpole_obs_edit:
+      name: 'CartPole_obs_edit_orig'
+      is_train: False
+      params:
+
+#試用する環境とパラメータ
+env:
+  name: 'CartPole-v0'
+  params:
+
+ls:
+  dpts_train_log: 100
+  dpts_update_lr: 100
+  dpts_eval: 1000
+  dpts_snapshot: 5000
+  base_initial_lr: 0.01
+
+#オプティマイザーモデル選択
+opt:
+  name: AdamW_decay
+  params:
+    # Exponential decay
+    lr_warmup_ratio: 1.0
+    lr_cooldown_ratio: 0.99
+    gain_threshold_turn_phase: 1.0e+10
+    gain_threshold_cooldown_phase: 1.0e+10
+
+
+
+misc:
+  adam_eps: 1.0e-15
