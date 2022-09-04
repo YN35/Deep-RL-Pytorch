@@ -1,15 +1,15 @@
 import time
 import torch
 
-from ..mlpipeline import MLPipeline
+from ...mlpipeline import MLPipeline
 from .data_utils import save_torch_image_batch, rescale_image
 from .data_transform import transform_presets
 from .dataset_scene_multiviews import SceneMultiViewsCOLMAP, SceneMultiViewsBlender, SceneMultiViewsPhySG
-from .model import get_module_class
+from ...model import get_module_class
 
 
 class DQN(MLPipeline):
-    def __init__(self, config, models):
+    def __init__(self, config, models, env):
         super().__init__(config)
 
         # Build the inverse rendering model
@@ -145,6 +145,8 @@ class DQN(MLPipeline):
                         'recon_sample': rgb,
                     }
                     break  # Currently exporting just a single test result.
+                
+                #TODO: save result data
 
         return result
 
@@ -152,9 +154,6 @@ class DQN(MLPipeline):
         # TODO: export masked images
         pass
     
-    def eval_result_writer(self, env_name, env_result, dpts_curr, writer):
-        #TODO: そのステップの動画を切り取って保存する
-        pass
 
     @MLPipeline._eval_mode
     def measure_inference_time(self, minibatch_size=1, trials=100):

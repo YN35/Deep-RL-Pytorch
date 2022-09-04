@@ -1,7 +1,11 @@
+import time
 from pathlib import Path
+import datetime
+import shutil
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, ConcatDataset
+from torch.utils.tensorboard import SummaryWriter
 
 from .model import get_module_class
 from .torch_utils import temporal_freeze
@@ -11,9 +15,25 @@ class MLPipeline:
     def __init__(self, cfg):
         self.cfg = cfg
         
+        # Make an output directory.
+        now = datetime.now().strftime('%Y-%m-%d-%H-%M-%S-%f')
+        self.outdir = str(Path(self.cfg.mainmodel.outdir).joinpath(f'{self.cfg.mainmodel.task}', f'{now}'))
+        Path(self.outdir).mkdir(parents=True, exist_ok=False)
+        print('[NEW directory] ' + self.outdir)
+        # Copy the config yaml to the output directory.
+        shutil.copy2(self.cfg.info.config_path, self.outdir)
+        
+        self.__epsd = 0
+        self.__step = 0
+        self.__step_sum = 0
+        
+        self.start_time = time.perf_counter()
+        
+        self.writer = SummaryWriter(self.outdir)
+        
         self._set_random_seed(self.cfg.misc.seed)
         self.cfg.model._device = torch.device(self.cfg.model.device) if self.cfg.model.device else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print('MLPipeline init - set device as' + self.cfg.model._device)
+        print('[Device] ' + self.cfg.model._device)
 
         for comp in self.cfg.model.components.values():
             if len(comp.params) > 0:
@@ -25,6 +45,35 @@ class MLPipeline:
         for division in self.cfg.dataset.divisions.values():
             for env in division.envs:
                 env._path = Path(self.cfg.dataset.root).joinpath(env.path)
+                
+    def add_step(self):
+        self.__step = self.__step + 1
+        self.__step_sum = self.__step_sum + 1
+        
+    def reset_step(self):
+        self.__step = 0
+        
+    def add_epsd(self):
+        self.__epsd = self.__epsd + 1
+        self.__step_sum = self.__step_sum + 1
+        
+    def print_elap_time(self):
+        """学習開始からの時間を表示
+        """
+        print(f'[Elapsed time] {self.__epsd}epsd {self.__step_sum}step ({time.perf_counter() - t0:.0f}s)')
+                
+    def take_val_log(self, args, x_axis='step_sum'):
+        x_ax = self.epsd if x_axis == 'epsd' else self.step_sum
+
+        self.writer.add_scalar('auto_reco/lr', lr, x_ax)
+    
+    def load_model(self, model, name):
+        
+    
+    def save_model(self, model, name):
+        snapshot_name_prefix = self.outdir + name + self.epsd + self.step
+        model.save_state_dict(snapshot_name_prefix)
+        print(f'[Snapshot] {snapshot_name_prefix}')
 
     def _setup_model_params(self):
         for comp in self.cfg.model.components.values():
@@ -52,7 +101,7 @@ class MLPipeline:
                     )
                     no_wd = {n for n, m in comp._module.named_modules() if isinstance(m, no_wd_module_classes)}
                     for n, p in comp._module.named_parameters():
-                        wd = 0.0 if any(n.startswith(bn) for bn in no_wd) else self.cfg.misc.wd
+                        wd = 0.0 if any(n.startswith(bn) for bn in no_wd) else self.cfg.opt.wd
                         params.append({'params': p, 'lr': self.cfg.ls._lr, 'weight_decay': wd, 'betas': self.cfg.misc.adam_betas, 'eps': self.cfg.misc.adam_eps})
 
             self.cfg.model._optimizer = torch.optim.AdamW(params)
@@ -119,8 +168,8 @@ class MLPipeline:
             return ret
         return wrap
 
-    def finish_training(self):
-        return self.cfg.ls._lr < self.cfg.ls._initial_lr
+    def epsd_finish_training(self):###############
+        return self.__epsd == self.cfg.ls._initial_lr
 
     # def train_epsd(self):
     #     raise Exception()

@@ -3,6 +3,7 @@ import yaml
 from datetime import datetime
 import shutil
 from pathlib import Path
+import importlib
 from dacite import from_dict
 
 from mllib.config import Config
@@ -17,33 +18,19 @@ def load_config():
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     config = from_dict(data_class=Config, data=config)
-
-    return config
-
-def load_config_and_make_output_directory(default_config, output_dir):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default=default_config)
-    config_path = parser.parse_args().config
-
-    # Load the config yaml as a Config object.
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    config = from_dict(data_class=Config, data=config)
-
-    # Make an output directory.
-    now = datetime.now().strftime('%Y-%m-%d-%H-%M-%S-%f')
-    output_dir = str(Path(output_dir).joinpath(f'{config.task}', f'{now}'))
-    config.misc.output_dir = output_dir
-    Path(output_dir).mkdir(parents=True, exist_ok=False)
-
-    # Copy the config yaml to the output directory.
-    shutil.copy2(config_path, output_dir)
+    
+    config.info.config_path = config_path
 
     return config
 
 def load_main_model(cfg):
-    if 'dqn' == cfg.task:
-        from mllib.main_models.dqn import DQN as MainModel
+    """モデルのメインファイルを読み込む
+    """
+    # if 'dqn' == cfg.mainmodel:
+    #     from mllib.main_models.dqn.main import DQN as MainModel
+    module_path = cfg.mainmodel.path
+    module = importlib.import_module(module_path)
+    MainModel = getattr(module, cfg.mainmodel.class_name)
     return MainModel(cfg)
 
 def load_models(cfg):
