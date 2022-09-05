@@ -43,7 +43,7 @@ def load_models(cfg):
         [dataclass]: [description]
     """
     for comp in cfg.model.comp.values():
-        cfg.model.comp[comp.name]._module = get_model_class(comp.name)(comp.hyper_params).to(cfg.model._device)
+        comp._module = get_model_class(comp.name)(comp.model_params).to(cfg.model._device)
     return cfg
 
 def load_envs(cfg):
@@ -55,8 +55,7 @@ def load_envs(cfg):
     Returns:
         [dataclass]: [description]
     """
-    for comp in cfg.model.comp.values():
-        cfg.model.comp[comp.name]._module = get_env_class(comp.name)(comp.hyper_params).to(cfg.model._device)
+    cfg.env._module = get_env_class(cfg.env.name)(cfg.env.env_params)
     return cfg
 
 def set_device(cfg):

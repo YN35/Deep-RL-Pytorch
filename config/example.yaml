@@ -14,12 +14,12 @@ model:
       name: 'model.pyにあるモデルのクラス名'
       enable_train: #パラメータを学習するか
       lr: 0.1
-      hyper_params:
+      model_params:
     cartpole_obs_edit:
       name: 'CartPole_obs_edit_orig'
       enable_train: False
       lr: None
-      hyper_params:
+      model_params:
 
 #試用する環境とパラメータ
 env:

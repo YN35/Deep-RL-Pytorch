@@ -1,6 +1,6 @@
 mainmodel:
   task: 'DQN_CartPole-v0'
-  path: './mllib/main_models/dqn'
+  path: 'mllib.main_models.dqn.main'
   class_name: 'DQN'
   outdir: ./runs_train
 
@@ -13,16 +13,20 @@ model:
       name: 'DQN_network_orig'
       enable_train: True
       lr: 0.1
-      in_shape: [20,]
-    cartpole_obs_edit:
-      name: 'CartPole_obs_edit_orig'
-      enable_train: False
+      model_params:
+        no_param: True
+    # cartpole_obs_edit:
+    #   name: 'CartPole_obs_edit_orig'
+    #   enable_train: False
 
 #試用する環境とパラメータ
 env:
   name: 'CartPole_v0'
   enable_finish_epsd: True
+  enalbe_render: True
   max_epsd: 100
+  env_params:
+    no_param: True
 
 #オプティマイザーモデル選択
 opt:

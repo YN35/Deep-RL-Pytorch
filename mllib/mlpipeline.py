@@ -66,6 +66,7 @@ class MLPipeline:
         self.writer.add_scalar('auto_reco/lr', lr, x_ax)
     
     def load_model(self, model, name):
+        pass
         
     
     def save_model(self, model, name):

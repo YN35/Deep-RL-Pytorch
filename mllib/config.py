@@ -12,6 +12,10 @@ class Mainmodel:
     enable_fp16: bool = True
     seed: int = 35
     
+@dataclass
+class ModelParams:
+    no_param: bool
+    in_shape: list[int] = field(default_factory=list)
 
 @dataclass
 class ModelDisc:
@@ -19,9 +23,9 @@ class ModelDisc:
     params: list[str] = field(default_factory=list)
     enable_train: bool = False
     lr: float = 0.05
+    model_params: ModelParams = None
     _params_curr: str = None
     _module: nn.Module = None
-    in_shape: list[int] = field(default_factory=list)
 
 @dataclass
 class Model:
@@ -34,10 +38,17 @@ class Model:
     
 
 @dataclass
+class EnvParams:
+    no_param: bool
+    difficulty: str = 'nomal'
+
+@dataclass
 class Env:
     name: str
     enable_finish_epsd: bool = True
+    enalbe_render: bool = True
     max_epsd: int = None
+    env_params: EnvParams = None
     
 @dataclass
 class Opt:
