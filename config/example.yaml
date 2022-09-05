@@ -1,8 +1,9 @@
 mainmodel:
-  task: 'DQN_CartPole-v0'
-  path: './mllib/main_models/dqn'
-  class_name: 'DQN'
+  task: 'モデル名_環境名'
+  path: './mllib/main_models/モデル名'
+  class_name: 'モデル名'
   outdir: ./runs_train
+  enable_fp16: True
 
 
 #追従するモデルと、パラメータを学習するか、そしてモデルパラメータ
@@ -10,23 +11,23 @@ model:
   root: ''
   comp:
     q_net:
-      name: 'DQN_network_orig'
-      enable_train: True
+      name: 'model.pyにあるモデルのクラス名'
+      enable_train: #パラメータを学習するか
       lr: 0.1
-      in_shape: [20,]
+      hyper_params:
     cartpole_obs_edit:
       name: 'CartPole_obs_edit_orig'
       enable_train: False
+      lr: None
+      hyper_params:
 
 #試用する環境とパラメータ
 env:
-  name: 'CartPole_v0'
-  enable_finish_epsd: True
-  max_epsd: 100
+  name: '利用する環境のenvs.pyのクラス名'
 
 #オプティマイザーモデル選択
 opt:
-  name: AdamW_decay
+  name: 'オプティマイザーの名前'
   lr_warmup_ratio: 1.0
   lr_cooldown_ratio: 0.99
   gain_threshold_turn_phase: 1.0e+10
@@ -39,6 +40,3 @@ log:
   bord:
     step: 100
     epsd: 1
-
-info:
-  blank: 'blank'

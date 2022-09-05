@@ -9,34 +9,35 @@ class Mainmodel:
     path: str
     class_name: str
     outdir: str = './runs_train'
+    enable_fp16: bool = True
+    seed: int = 35
     
-@dataclass
-class HyperParams:
-    in_shape: tuple
 
 @dataclass
 class ModelDisc:
     name: str
     params: list[str] = field(default_factory=list)
-    enable_train: bool
-    lr: float
-    hyper_params: HyperParams
+    enable_train: bool = False
+    lr: float = 0.05
     _params_curr: str = None
     _module: nn.Module = None
+    in_shape: list[int] = field(default_factory=list)
 
 @dataclass
 class Model:
-    components: dict[str, ModelDisc]
+    comp: dict[str, ModelDisc]
     root: str = None
     device: str = 'cuda'
     _device: torch.device = None
-    _loss: dict[str, nn.Module] = field(default_factory=dict)  # TODO: treat equally as components
+    _loss: dict[str, nn.Module] = field(default_factory=dict)
     _optimizer: torch.optim.Optimizer = None
     
 
 @dataclass
 class Env:
     name: str
+    enable_finish_epsd: bool = True
+    max_epsd: int = None
     
 @dataclass
 class Opt:
@@ -60,8 +61,9 @@ class Log:
     bord: LogBord
 
 @dataclass
-class Misc:
-    seed: int = 35
+class Info:
+    blank: str = 'blank'
+    config_path: str = None
 
 @dataclass
 class Config:
@@ -70,3 +72,4 @@ class Config:
     env: Env
     opt: Opt
     log: Log
+    info: Info

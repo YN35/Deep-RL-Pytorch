@@ -1,99 +1,26 @@
-import time
 import torch
 
 from ...mlpipeline import MLPipeline
-from .data_utils import save_torch_image_batch, rescale_image
-from .data_transform import transform_presets
-from .dataset_scene_multiviews import SceneMultiViewsCOLMAP, SceneMultiViewsBlender, SceneMultiViewsPhySG
-from ...model import get_module_class
 
 
 class DQN(MLPipeline):
-    def __init__(self, config, models, env):
+    def __init__(self, config):
         super().__init__(config)
-
-        # Build the inverse rendering model
-        network = self.cfg.model.components.get('DQN_network')
-        
-        network._module = get_module_class(network.name)(dim_emb_position=positional_encoding._module.dim_feat)
 
         self._setup_model_params()
         self._setup_optimizer()
         self.scaler = torch.cuda.amp.GradScaler()
-
-        # Build the datasets
-        for div_name, div in self.cfg.dataset.divisions.items():
-            for env in div.envs:
-                if env.dataset_class == 'SceneMultiViewsBlender':
-                    if div_name == 'eval':
-                        div_name = 'train'
-                    env._dataset = SceneMultiViewsBlender(
-                        root=env._path, transform=transform_presets[env.transform], division=div_name,##########################
-                    )
-                elif env.dataset_class == 'SceneMultiViewsPhySG':
-                    if div_name == 'eval':
-                        div_name = 'train'
-                    env._dataset = SceneMultiViewsPhySG(
-                        root=env._path, division=div_name, gamma=self.cfg.inverse_rendering.gamma,train_cameras=self.cfg.inverse_rendering.train_cameras,
-                    )
-                else:   
-                    env._dataset = SceneMultiViewsCOLMAP(
-                        root=env._path, transform=transform_presets[env.transform],
-                    )
-
-        self._setup_dataset_and_loader()
-
-        # Preload all samples
-        # TODO: move the sampling code into the dataset class??
-        images = []
-        rays = []
-        for sample in self.loader['train']:
-            image, ray, mask = sample['image'], sample['ray'], sample['mask']
-            image = image.permute(0, 2, 3, 1)  # TODO: use to torch tensor without channel perm
-            image[~mask[:, :, :, 0]] = 0.0  # TODO: Match to the env map color in the scene.
-
-            images.append(image)
-            rays.append(ray)
-
-        self.images = torch.cat(images, dim=0)
-        self.rays = torch.cat(rays, dim=0)
 
     def finish_training(self):
         return False
 
     @MLPipeline._train_mode
     def train_epsd(self):
+        
+        network = self.cfg.model.comp.get('DQN_network')._module
         result = {}
 
-        # Random sample rays (due to limited amount of GPU memory).
-        b, h, w, c = self.images.shape
-        image_batch_size = min(b, self.cfg.inverse_rendering.train_image_batch_size)
-        if image_batch_size == 0:
-            image = self.images.view(-1, 3)
-            ray = self.rays.view(-1, 6)
-            rand_idx = torch.randint(0, b * w * h, (self.cfg.inverse_rendering.train_ray_batch_size,))
-            image = image[rand_idx]
-            ray = ray[rand_idx]
-        else:
-            # Use this when the number of ray samples per image is important.
-            rand_image_idx = torch.randint(0, b, (image_batch_size,))
-            image = self.images[rand_image_idx].reshape(-1, 3)
-            ray = self.rays[rand_image_idx].reshape(-1, 6)
-            rand_idx = torch.randint(0, image_batch_size * w * h, (self.cfg.inverse_rendering.train_ray_batch_size,))
-            image = image[rand_idx]
-            ray = ray[rand_idx]
-
-        image_, ray_ = image.to(self.cfg.model._device), ray.to(self.cfg.model._device)
-
-        # TODO: importance sampling here before rendering
-
-        positional_encoding = self.cfg.model.components['positional_encoding']._module
-        angular_encoding = self.cfg.model.components['angular_encoding']._module
-        sdf = self.cfg.model.components['sdf']._module
-        albedo = self.cfg.model.components['albedo']._module
-        renderer = self.cfg.model.components['renderer']._module
-
-        with torch.cuda.amp.autocast():
+        with torch.cuda.amp.autocast(enabled=self.cfg.mainmodel.enable_fp16):
             rgb_ = renderer(ray_, positional_encoding, angular_encoding, sdf, albedo)
 
             loss_recon_ = self.cfg.model._loss['recon'](rgb_, image_).mean()
@@ -129,11 +56,11 @@ class DQN(MLPipeline):
                     image_, ray_ = image.to(self.cfg.model._device), ray.to(self.cfg.model._device)
                     rgb_ = torch.empty_like(image_)
 
-                    positional_encoding = self.cfg.model.components['positional_encoding']._module
-                    angular_encoding = self.cfg.model.components['angular_encoding']._module
-                    sdf = self.cfg.model.components['sdf']._module
-                    albedo = self.cfg.model.components['albedo']._module
-                    renderer = self.cfg.model.components['renderer']._module
+                    positional_encoding = self.cfg.model.comp['positional_encoding']._module
+                    angular_encoding = self.cfg.model.comp['angular_encoding']._module
+                    sdf = self.cfg.model.comp['sdf']._module
+                    albedo = self.cfg.model.comp['albedo']._module
+                    renderer = self.cfg.model.comp['renderer']._module
 
                     with torch.cuda.amp.autocast():
                         for i in range(0, ray_.shape[0], self.cfg.inverse_rendering.test_ray_batch_size):

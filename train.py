@@ -1,11 +1,13 @@
 
 
-from utils import load_config, load_main_model, load_models
+from utils import load_config, load_main_model, load_models, set_device, load_envs
 
 
 def train(cfg):
-    models = load_models(cfg)
-    main_model = load_main_model(cfg, models)
+    cfg = set_device(cfg)
+    cfg = load_models(cfg)
+    cfg = load_envs(cfg)
+    main_model = load_main_model(cfg)
 
     while True:
         # Step training.

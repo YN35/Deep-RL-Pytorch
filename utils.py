@@ -3,8 +3,11 @@ import yaml
 import importlib
 from dacite import from_dict
 
-from mllib.config import Config
+import torch
 
+from mllib.config import Config
+from mllib.model import get_model_class
+from mllib.env import get_env_class
 
 def load_config():
     parser = argparse.ArgumentParser()
@@ -31,8 +34,34 @@ def load_main_model(cfg):
     return MainModel(cfg)
 
 def load_models(cfg):
-    get_module_class(network.name)(dim_emb_position=positional_encoding._module.dim_feat)
+    """cfgから読み込んでモデルのインスタンスを_moduleに格納する
+
+    Args:
+        cfg ([dataclass]): [description]
+
+    Returns:
+        [dataclass]: [description]
+    """
+    for comp in cfg.model.comp.values():
+        cfg.model.comp[comp.name]._module = get_model_class(comp.name)(comp.hyper_params).to(cfg.model._device)
+    return cfg
+
+def load_envs(cfg):
+    """cfgから読み込んで環境のインスタンスを_moduleに格納する
+
+    Args:
+        cfg ([dataclass]): [description]
+
+    Returns:
+        [dataclass]: [description]
+    """
+    for comp in cfg.model.comp.values():
+        cfg.model.comp[comp.name]._module = get_env_class(comp.name)(comp.hyper_params).to(cfg.model._device)
+    return cfg
+
+def set_device(cfg):
+    cfg.model._device = torch.device(cfg.model.device) if cfg.model.device else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print('[Device] ' + str(cfg.model._device))
+    return cfg
     
-    
-def get_module_class(name):
-    return getattr(getattr(__import__('mllib'), 'model'), name)
+

@@ -19,7 +19,7 @@ class MLPipeline:
         now = datetime.now().strftime('%Y-%m-%d-%H-%M-%S-%f')
         self.outdir = str(Path(self.cfg.mainmodel.outdir).joinpath(f'{self.cfg.mainmodel.task}', f'{now}'))
         Path(self.outdir).mkdir(parents=True, exist_ok=False)
-        print('[NEW directory] ' + self.outdir)
+        print('[Directory] ' + self.outdir)
         # Copy the config yaml to the output directory.
         shutil.copy2(self.cfg.info.config_path, self.outdir)
         
@@ -31,11 +31,9 @@ class MLPipeline:
         
         self.writer = SummaryWriter(self.outdir)
         
-        self._set_random_seed(self.cfg.misc.seed)
-        self.cfg.model._device = torch.device(self.cfg.model.device) if self.cfg.model.device else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print('[Device] ' + self.cfg.model._device)
+        self._set_random_seed(self.cfg.mainmodel.seed)
 
-        for comp in self.cfg.model.components.values():
+        for comp in self.cfg.model.comp.values():
             if len(comp.params) > 0:
                 path = comp.params.pop()
                 comp._params_curr = Path(self.cfg.model.root).joinpath(path)
@@ -76,7 +74,7 @@ class MLPipeline:
         print(f'[Snapshot] {snapshot_name_prefix}')
 
     def _setup_model_params(self):
-        for comp in self.cfg.model.components.values():
+        for comp in self.cfg.model.comp.values():
             if comp._module:
                 comp._module.to(self.cfg.model._device)
                 if comp._params_curr:
@@ -93,7 +91,7 @@ class MLPipeline:
             self.cfg.ls._suspend_cooldown = True
 
             params = []
-            for comp in self.cfg.model.components.values():
+            for comp in self.cfg.model.comp.values():
                 if comp._module:
                     no_wd_module_classes = (
                         get_module_class('MultiresolutionHashEncoding'),
@@ -109,27 +107,9 @@ class MLPipeline:
 
             # For lipschitz normalization (https://nv-tlabs.github.io/lip-mlp/)
             self.lipschitz_norms = []  # TODO: Can use the same objective if there are more than one mlp??
-            for comp in self.cfg.model.components.values():
+            for comp in self.cfg.model.comp.values():
                 if comp._module:
                     self.lipschitz_norms.extend([m for m in comp._module.modules() if isinstance(m, get_module_class('LipschitzNorm'))])
-
-    def _setup_dataset_and_loader(self):
-        self.loader = {}
-
-        div_train = self.cfg.dataset.divisions.get('train')
-        if div_train and div_train.envs:
-            dataset = ConcatDataset([env._dataset for env in div_train.envs])
-            self.loader['train'] = DataLoader(dataset, batch_size=div_train.minibatch_size, shuffle=div_train.shuffle, drop_last=div_train.drop_last, num_workers=div_train.num_workers, persistent_workers=True, pin_memory=True)
-            self.iter_train = iter(self.loader['train'])
-
-        for div_name, div in self.cfg.dataset.divisions.items():
-            if div_name == 'train':
-                continue
-        
-            self.loader[div_name] = {
-                env.name: DataLoader(env._dataset, batch_size=div.minibatch_size, shuffle=False, drop_last=False, num_workers=div.num_workers, persistent_workers=False, pin_memory=True)
-                for env in div.envs
-            }
 
     def _draw_next_train_batch(self):
         try:
@@ -146,7 +126,7 @@ class MLPipeline:
         # Gradient clipping for stabler training.
         if self.cfg.misc.grad_clip_value > 0 or self.cfg.misc.grad_clip_norm > 0:
             self.scaler.unscale_(self.cfg.model._optimizer)
-            for comp in self.cfg.model.components.values():
+            for comp in self.cfg.model.comp.values():
                 if comp._module:
                     if self.cfg.misc.grad_clip_value > 0:
                         torch.nn.utils.clip_grad_value_(comp._module.parameters(), self.cfg.misc.grad_clip_value)
@@ -160,7 +140,7 @@ class MLPipeline:
         # TODO: handle the non-positional argumants
         def wrap(self):
             modules = []
-            for comp in self.cfg.model.components.values():
+            for comp in self.cfg.model.comp.values():
                 if comp._module:
                     modules.append(comp._module)
             with temporal_freeze(modules):
@@ -210,7 +190,7 @@ class MLPipeline:
         return self.cfg.ls._lr
 
     def save_state_dict(self, name_prefix):
-        for name, comp in self.cfg.model.components.items():
+        for name, comp in self.cfg.model.comp.items():
             if comp._module and not comp.no_snapshot:
                 torch.save(comp._module.state_dict(), Path(self.cfg.misc.output_dir).joinpath(f'{name_prefix}_{name}.pth'))
 
@@ -226,7 +206,7 @@ class MLPipeline:
 
     def get_params_path(self):
         ret = None
-        for comp in self.cfg.model.components.values():
+        for comp in self.cfg.model.comp.values():
             if comp._params_curr:
                 ret = comp._params_curr
                 break
