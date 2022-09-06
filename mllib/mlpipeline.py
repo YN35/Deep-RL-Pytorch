@@ -32,6 +32,8 @@ class MLPipeline:
         self.writer = SummaryWriter(self.outdir)
         
         self._set_random_seed(self.cfg.mainmodel.seed)
+        
+        self.exp_stock_size = max[self.cfg.mainmodel.train_frq, self.cfg.mainmodel.exp_num_use]
 
         for comp in self.cfg.model.comp.values():
             if len(comp.params) > 0:
@@ -45,11 +47,29 @@ class MLPipeline:
         self.__step = self.__step + 1
         self.__step_sum = self.__step_sum + 1
         
+        if not(self.cfg.mainmodel.epsd_train) & self.__step_sum % self.cfg.mainmodel.train_frq == 0:
+            return True
+        else:
+            return False
+        
     def reset_step(self):
         self.__step = 0
         
     def add_epsd_log(self):
         self.__epsd = self.__epsd + 1
+        
+        if self.cfg.mainmodel.epsd_train & self.__epsd % self.cfg.mainmodel.train_frq == 0:
+            return True
+        else:
+            return False
+        
+    def do_trian(self):
+        if not(self.cfg.mainmodel.epsd_train) and (self.__step_sum-1) % self.cfg.mainmodel.train_frq == 0 and not(self.__step > self.exp_stock_size):
+            return True
+        elif self.cfg.mainmodel.epsd_train and (self.__epsd-1) % self.cfg.mainmodel.train_frq == 0 and not(self.__step == 0):
+            return True
+        else:
+            return False
         
         
     def print_elap_time(self):
@@ -146,34 +166,6 @@ class MLPipeline:
     # @_eval_mode
     # def eval_epsd(self):
     #     raise Exception()
-
-    def update_lr(self, gain):
-        self.cfg.ls._gain_stat.append(gain)
-        window_size = self.cfg.ls.gain_window_size_warmup_phase if self.cfg.ls._is_warmup_phase else self.cfg.ls.gain_window_size_cooldown_phase
-        self.cfg.ls._gain_stat = self.cfg.ls._gain_stat[-window_size:]
-        gain = np.mean(self.cfg.ls._gain_stat)
-
-        if self.cfg.ls._is_warmup_phase:
-            if gain < self.cfg.ls.gain_threshold_turn_phase:
-                self.cfg.ls._is_warmup_phase = not self.cfg.ls._is_warmup_phase
-                self.cfg.ls._gain_stat = []
-            elif gain < self.cfg.ls.gain_threshold_warmup_phase:
-                self.cfg.ls._lr *= self.cfg.ls.lr_warmup_ratio
-                for group in self.cfg.model._optimizer.param_groups:
-                    group['lr'] *= self.cfg.ls.lr_warmup_ratio
-        else:
-            if self.cfg.ls._suspend_cooldown:
-                if gain < self.cfg.ls.suspend_cooldown_threshold_ratio * self.cfg.ls.gain_threshold_cooldown_phase:
-                    self.cfg.ls._suspend_cooldown = not self.cfg.ls._suspend_cooldown
-            else:
-                if gain < self.cfg.ls.gain_threshold_cooldown_phase:
-                    self.cfg.ls._lr *= self.cfg.ls.lr_cooldown_ratio
-                    for group in self.cfg.model._optimizer.param_groups:
-                        group['lr'] *= self.cfg.ls.lr_cooldown_ratio
-                else:
-                    self.cfg.ls._suspend_cooldown = not self.cfg.ls._suspend_cooldown
-
-        return gain
 
     def get_lr(self):
         return self.cfg.ls._lr

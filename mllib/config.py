@@ -8,6 +8,9 @@ class Mainmodel:
     path: str
     class_name: str
     max_epsd: int
+    epsd_train: bool
+    train_frq: int
+    exp_num_use: int
     outdir: str = './runs_train'
     enable_fp16: bool = True
     seed: int = 35

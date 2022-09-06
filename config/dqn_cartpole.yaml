@@ -5,6 +5,9 @@ mainmodel:
   max_epsd: 10000
   outdir: ./runs_train
   enable_fp16: True
+  epsd_train: False
+  train_frq: 10
+  exp_num_use: 1
 
 
 #追従するモデルと、パラメータを学習するか、そしてモデルパラメータ
@@ -12,7 +15,7 @@ model:
   root: ''
   comp:
     q_net:
-      name: 'DQN_network_orig'
+      name: 'DQN_network_CartPole_v1'
       enable_train: True
       opt_model: 'AdamW_0.1'
       model_params:

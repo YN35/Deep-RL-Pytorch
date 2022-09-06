@@ -22,6 +22,7 @@ class DQN(MLPipeline):
         result = {}
 
         while True:
+            obs = torch.from_numpy(obs).to(self.cfg.model._device)
             with torch.cuda.amp.autocast(enabled=self.cfg.mainmodel.enable_fp16):
                 
                 Q_val = network(obs)
@@ -31,14 +32,20 @@ class DQN(MLPipeline):
                 if done:
                     break
                 
+                experience = 
+                
+                if do_train:
 
-                loss_recon_ = self.cfg.model._loss['recon'](rgb_, image_).mean()
-                loss_ = loss_recon_
+                    loss_recon_ = self.cfg.model._loss['recon'](rgb_, image_).mean()
+                    loss_ = loss_recon_
+                
+                do_train = self.add_step_log(step_log)
 
-        self.cfg.model._optimizer.zero_grad(set_to_none=True)
-        self.scaler.scale(loss_).backward()
-        self.scaler.step(self.cfg.model._optimizer)
-        self.scaler.update()
+        if do_train:
+            self.cfg.model._optimizer.zero_grad(set_to_none=True)
+            self.scaler.scale(loss_).backward()
+            self.scaler.step(self.cfg.model._optimizer)
+            self.scaler.update()
 
         result['dpts'] = 1
         result['loss'] = loss_.item()
@@ -46,7 +53,6 @@ class DQN(MLPipeline):
             'mse': loss_recon_.item(),
             'psnr': -10*torch.log10(loss_recon_).item(),
         }
-        self.add_step_log()
             
         return epsd_log
 

@@ -1,5 +1,4 @@
-
-from turtle import forward
+import torch
 import gym
 
 def get_env_class(name):
@@ -18,10 +17,10 @@ class CartPole_v1():
         obs = self.env.reset()
         return obs
         
-    def step(self, action):
+    def step(self, action) -> torch.Tensor:
         if self.enable_render:
             self.env.render()
         
-        observation, reward, done, info = self.env.step(action)
+        observation, reward, done, info = self.env.step(action.cpu().numpy())
         
         return observation, reward, done, info
