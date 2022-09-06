@@ -5,10 +5,10 @@ import gym
 def get_env_class(name):
     return getattr(getattr(__import__('mllib'), 'env'), name)
 
-class CartPole_v0():
+class CartPole_v1():
     def __init__(self, enable_render=False) -> None:
         self.enable_render = enable_render
-        self.env = gym.make('CartPole-v0')
+        self.env = gym.make('CartPole-v1')
         print('[ENV] action space is ' + str(self.env.action_space.sample()))
         
         

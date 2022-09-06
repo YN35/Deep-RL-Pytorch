@@ -1,14 +1,14 @@
 import time
 from pathlib import Path
-import datetime
+from datetime import datetime
+
 import shutil
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, ConcatDataset
 from torch.utils.tensorboard import SummaryWriter
 
-from .model import get_module_class
 from .torch_utils import temporal_freeze
+from mllib.optimizer import get_opt_obj
 
 
 class MLPipeline:
@@ -40,9 +40,6 @@ class MLPipeline:
             else:
                 comp._params_curr = None
 
-        for division in self.cfg.dataset.divisions.values():
-            for env in division.envs:
-                env._path = Path(self.cfg.dataset.root).joinpath(env.path)
                 
     def add_step(self):
         self.__step = self.__step + 1
@@ -104,6 +101,7 @@ class MLPipeline:
                         params.append({'params': p, 'lr': self.cfg.ls._lr, 'weight_decay': wd, 'betas': self.cfg.misc.adam_betas, 'eps': self.cfg.misc.adam_eps})
 
             self.cfg.model._optimizer = torch.optim.AdamW(params)
+            self.cfg.model._optimizer = get_opt_obj(self.cfg.opt.name)(params)
             self.scaler = torch.cuda.amp.GradScaler()
 
             # For lipschitz normalization (https://nv-tlabs.github.io/lip-mlp/)
@@ -136,6 +134,14 @@ class MLPipeline:
 
         self.scaler.step(self.cfg.model._optimizer)
         self.scaler.update()
+
+    def _train_mode(func):
+        def wrap(self):
+            for comp in self.cfg.model.components.values():
+                if comp._module:
+                    comp._module.train()
+            return func(self)
+        return wrap
 
     def _eval_mode(func):
         # TODO: handle the non-positional argumants
