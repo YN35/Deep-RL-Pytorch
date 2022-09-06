@@ -9,7 +9,7 @@ class DQN(MLPipeline):
 
         self._setup_model_params()
         self._setup_optimizer()
-        self.scaler = torch.cuda.amp.GradScaler()
+        
 
     def finish_training(self):
         return False
@@ -17,14 +17,23 @@ class DQN(MLPipeline):
     @MLPipeline._train_mode
     def train_epsd(self):
         
-        network = self.cfg.model.comp.get('DQN_network')._module
+        obs = self.cfg.env._module.reset()
+        network = self.cfg.model.comp.get('q_net')._module
         result = {}
 
-        with torch.cuda.amp.autocast(enabled=self.cfg.mainmodel.enable_fp16):
-            rgb_ = renderer(ray_, positional_encoding, angular_encoding, sdf, albedo)
+        while True:
+            with torch.cuda.amp.autocast(enabled=self.cfg.mainmodel.enable_fp16):
+                
+                Q_val = network(obs)
+                act = Q_val.argmax()
+                
+                obs, reward, done, info = self.cfg.env._module.step(act)
+                if done:
+                    break
+                
 
-            loss_recon_ = self.cfg.model._loss['recon'](rgb_, image_).mean()
-            loss_ = loss_recon_
+                loss_recon_ = self.cfg.model._loss['recon'](rgb_, image_).mean()
+                loss_ = loss_recon_
 
         self.cfg.model._optimizer.zero_grad(set_to_none=True)
         self.scaler.scale(loss_).backward()
@@ -37,7 +46,9 @@ class DQN(MLPipeline):
             'mse': loss_recon_.item(),
             'psnr': -10*torch.log10(loss_recon_).item(),
         }
-        return result
+        self.add_step_log()
+            
+        return epsd_log
 
     @MLPipeline._eval_mode
     def eval_epsd(self):

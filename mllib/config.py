@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from torch.utils.data import Dataset
 import torch
 import torch.nn as nn
 
@@ -8,6 +7,7 @@ class Mainmodel:
     task: str
     path: str
     class_name: str
+    max_epsd: int
     outdir: str = './runs_train'
     enable_fp16: bool = True
     seed: int = 35
@@ -22,7 +22,7 @@ class ModelDisc:
     name: str
     params: list[str] = field(default_factory=list)
     enable_train: bool = False
-    lr: float = 0.05
+    opt_model: str = None
     model_params: ModelParams = None
     _params_curr: str = None
     _module: nn.Module = None
@@ -39,22 +39,32 @@ class Model:
 
 @dataclass
 class EnvParams:
-    no_param: bool
+    enable_render: bool
     difficulty: str = 'nomal'
+    _observation_space: list[int] = field(default_factory=list)
+    _action_space: list[int] = field(default_factory=list)
 
 @dataclass
 class Env:
     name: str
     enable_finish_epsd: bool = True
     enalbe_render: bool = True
-    max_epsd: int = None
+    max_step: int = None
     env_params: EnvParams = None
+    
+@dataclass
+class OptParams:
+    lr: float
+    wd: float = 0.0
+    adam_eps: float = 1e-8
+    adam_betas: list[float] = field(default_factory=lambda:[0.9, 0.999])
     
 @dataclass
 class Opt:
     name: str
-    #weight decay
-    wd: float = 0.0
+    profile_name: str
+    opt_params: OptParams
+    _module: torch.optim.Optimizer = None
     
 @dataclass
 class LogPrint:
@@ -81,6 +91,6 @@ class Config:
     mainmodel: Mainmodel
     model: Model
     env: Env
-    opt: Opt
+    opt: dict[str, Opt]
     log: Log
     info: Info

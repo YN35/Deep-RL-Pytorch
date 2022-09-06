@@ -2,7 +2,9 @@ mainmodel:
   task: 'DQN_CartPole-v1'
   path: 'mllib.main_models.dqn.main'
   class_name: 'DQN'
+  max_epsd: 10000
   outdir: ./runs_train
+  enable_fp16: True
 
 
 #追従するモデルと、パラメータを学習するか、そしてモデルパラメータ
@@ -12,8 +14,7 @@ model:
     q_net:
       name: 'DQN_network_orig'
       enable_train: True
-      opt: AdamW
-      lr: 0.1
+      opt_model: 'AdamW_0.1'
       model_params:
         no_param: True
     # cartpole_obs_edit:
@@ -25,19 +26,25 @@ env:
   name: 'CartPole_v1'
   enable_finish_epsd: True
   enalbe_render: True
-  max_epsd: 100
+  max_step: 100
   env_params:
-    no_param: True
+    enable_render: True
 
 #オプティマイザーモデル選択
 opt:
-  name: AdamW
-  
-  lr: 0.1
-  lr_warmup_ratio: 1.0
-  lr_cooldown_ratio: 0.99
-  gain_threshold_turn_phase: 1.0e+10
-  gain_threshold_cooldown_phase: 1.0e+10
+  adamw:
+    name: 'AdamW'
+    profile_name: 'AdamW_0.1'
+    opt_params:
+      lr: 0.1
+      wd: 0.0
+      adam_eps: 1.0e-8
+      adam_betas: [0.0, 0.9]
+  sgd:
+    name: 'SGD'
+    profile_name: 'SGD_defo'
+    opt_params:
+      lr: 0.1
 
 log:
   print:

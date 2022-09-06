@@ -8,11 +8,13 @@ def train(cfg):
     cfg = load_models(cfg)
     cfg = load_envs(cfg)
     main_model = load_main_model(cfg)
+    print('[Start]')
 
     while True:
         # Step training.
-        main_model.train_epsd()
+        epsd_log = main_model.train_epsd()
         
+        main_model.add_epsd_log(epsd_log)
         # Finish the training?
         if main_model.finish_training() or main_model.epsd_finish_training():
             print(f'[Finish]')

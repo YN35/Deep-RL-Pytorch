@@ -8,7 +8,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 from .torch_utils import temporal_freeze
-from mllib.optimizer import get_opt_obj
+from mllib.optimizer import get_opt_func
 
 
 class MLPipeline:
@@ -41,16 +41,16 @@ class MLPipeline:
                 comp._params_curr = None
 
                 
-    def add_step(self):
+    def add_step_log(self):
         self.__step = self.__step + 1
         self.__step_sum = self.__step_sum + 1
         
     def reset_step(self):
         self.__step = 0
         
-    def add_epsd(self):
+    def add_epsd_log(self):
         self.__epsd = self.__epsd + 1
-        self.__step_sum = self.__step_sum + 1
+        
         
     def print_elap_time(self):
         """学習開始からの時間を表示
@@ -80,35 +80,17 @@ class MLPipeline:
                     comp._module.load_state_dict(torch.load(comp._params_curr, map_location=self.cfg.model.device))
 
     def _setup_optimizer(self, custom_ratio=None):
-        div_train = self.cfg.dataset.divisions.get('train')
-        if div_train and div_train.envs:
-            self.cfg.ls._initial_lr = self.cfg.ls.base_initial_lr * (custom_ratio or (div_train.minibatch_size / 256))
-            self.cfg.ls._lr = self.cfg.ls._initial_lr
-            self.cfg.ls._gain_stat = []
-            self.cfg.ls._is_warmup_phase = True
-            self.cfg.ls._suspend_cooldown = True
-
+        for opt in self.cfg.opt.values():
+            #今読み込まれているoptを利用するモデルをすべてリストに入れる
             params = []
             for comp in self.cfg.model.comp.values():
-                if comp._module:
-                    no_wd_module_classes = (
-                        get_module_class('MultiresolutionHashEncoding'),
-                        get_module_class('LipschitzNorm'),
-                    )
-                    no_wd = {n for n, m in comp._module.named_modules() if isinstance(m, no_wd_module_classes)}
+                if comp.opt_model == opt.profile_name:
                     for n, p in comp._module.named_parameters():
-                        wd = 0.0 if any(n.startswith(bn) for bn in no_wd) else self.cfg.opt.wd
-                        params.append({'params': p, 'lr': self.cfg.ls._lr, 'weight_decay': wd, 'betas': self.cfg.misc.adam_betas, 'eps': self.cfg.misc.adam_eps})
+                        params.append({'params': p, 'opt_params': opt.opt_params})
+                        
+            opt._module = get_opt_func(opt.name, params) if not len(params)==0 else None
 
-            self.cfg.model._optimizer = torch.optim.AdamW(params)
-            self.cfg.model._optimizer = get_opt_obj(self.cfg.opt.name)(params)
-            self.scaler = torch.cuda.amp.GradScaler()
-
-            # For lipschitz normalization (https://nv-tlabs.github.io/lip-mlp/)
-            self.lipschitz_norms = []  # TODO: Can use the same objective if there are more than one mlp??
-            for comp in self.cfg.model.comp.values():
-                if comp._module:
-                    self.lipschitz_norms.extend([m for m in comp._module.modules() if isinstance(m, get_module_class('LipschitzNorm'))])
+        self.scaler = torch.cuda.amp.GradScaler()
 
     def _draw_next_train_batch(self):
         try:
@@ -137,7 +119,7 @@ class MLPipeline:
 
     def _train_mode(func):
         def wrap(self):
-            for comp in self.cfg.model.components.values():
+            for comp in self.cfg.model.comp.values():
                 if comp._module:
                     comp._module.train()
             return func(self)
@@ -156,7 +138,7 @@ class MLPipeline:
         return wrap
 
     def epsd_finish_training(self):###############
-        return self.__epsd == self.cfg.ls._initial_lr
+        return self.__epsd == self.cfg.mainmodel.max_epsd
 
     # def train_epsd(self):
     #     raise Exception()
