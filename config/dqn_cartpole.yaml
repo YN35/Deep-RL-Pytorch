@@ -2,11 +2,15 @@ mainmodel:
   task: 'DQN_CartPole-v1'
   path: 'mllib.main_models.dqn.main'
   class_name: 'DQN'
-  max_epsd: 10000
+  max_train_epsd: 10000
+  max_train_step: 1000000000000000
   outdir: ./runs_train
   enable_fp16: True
-  epsd_train: False
-  train_frq: 10
+  discount_rate: 0.999
+  #ε-greedyの確率
+  random_act_prob: 0.1
+  act_space: 2
+  train_frq: 100
   exp_num_use: 1
 
 
@@ -28,7 +32,6 @@ model:
 env:
   name: 'CartPole_v1'
   enable_finish_epsd: True
-  enalbe_render: True
   max_step: 100
   env_params:
     enable_render: True
@@ -39,7 +42,7 @@ opt:
     name: 'AdamW'
     profile_name: 'AdamW_0.1'
     opt_params:
-      lr: 0.1
+      lr: 0.01
       wd: 0.0
       adam_eps: 1.0e-8
       adam_betas: [0.0, 0.9]
@@ -47,14 +50,16 @@ opt:
     name: 'SGD'
     profile_name: 'SGD_defo'
     opt_params:
-      lr: 0.1
+      lr: 0.01
 
 log:
   print:
-    step: 100
-    epsd: 10000000000
+    step: 500
+    train: 10
+    epsd: 50
   bord:
     step: 100
+    train: 10
     epsd: 1
 
 info:

@@ -12,9 +12,9 @@ def train(cfg):
 
     while True:
         # Step training.
-        epsd_log = main_model.train_epsd()
+        main_model.train_epsd()
         
-        main_model.add_epsd_log(epsd_log)
+        main_model.add_epsd()
         # Finish the training?
         if main_model.finish_training() or main_model.epsd_finish_training():
             print(f'[Finish]')

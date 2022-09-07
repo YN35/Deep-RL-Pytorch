@@ -14,6 +14,8 @@ class CartPole_v1():
         print('[ENV] action space is ' + str(param._action_space))
         
     def reset(self):
+        self.epsd_reward = 0
+        self.epsd_step = 0
         obs = self.env.reset()
         return obs
         
@@ -22,5 +24,7 @@ class CartPole_v1():
             self.env.render()
         
         observation, reward, done, info = self.env.step(action.cpu().numpy())
+        self.epsd_reward = self.epsd_reward + reward
+        self.epsd_step = self.epsd_step + 1
         
         return observation, reward, done, info

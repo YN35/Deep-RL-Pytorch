@@ -20,7 +20,7 @@ class DQN_network_CartPole_v1(nn.Module):
         # init_weights(self)
         
     def forward(self, x) -> torch.Tensor:
-        x = self.softplus(self.fc1(x))
-        x = self.softplus(self.fc2(x))
-        x = self.sigmoid(self.fc3(x))
+        x = self.relu(self.fc1(x))
+        x = self.relu(self.fc2(x))
+        x = self.fc3(x)
         return x

@@ -7,13 +7,18 @@ class Mainmodel:
     task: str
     path: str
     class_name: str
-    max_epsd: int
-    epsd_train: bool
+    max_train_epsd: int
+    max_train_step: int
     train_frq: int
     exp_num_use: int
+    discount_rate: float
+    act_space: int
+    random_act_prob: float
     outdir: str = './runs_train'
     enable_fp16: bool = True
     seed: int = 35
+    exp_buffer_size: int = 4096
+    batch_size:int = 1024
     
 @dataclass
 class ModelParams:
@@ -51,7 +56,6 @@ class EnvParams:
 class Env:
     name: str
     enable_finish_epsd: bool = True
-    enalbe_render: bool = True
     max_step: int = None
     env_params: EnvParams = None
     
@@ -72,11 +76,13 @@ class Opt:
 @dataclass
 class LogPrint:
     step: int = 100
+    train: int = 10
     epsd: int = 10000000000
     
 @dataclass
 class LogBord:
     step: int = 100
+    train: int = 10
     epsd: int = 1
 
 @dataclass

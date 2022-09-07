@@ -23,17 +23,18 @@ class MLPipeline:
         # Copy the config yaml to the output directory.
         shutil.copy2(self.cfg.info.config_path, self.outdir)
         
-        self.__epsd = 0
+        self._epsd = 0
         self.__step = 0
-        self.__step_sum = 0
+        self._step_sum = 0
+        self._train_sum = 0
+        self.done_epsd = False
         
-        self.start_time = time.perf_counter()
+        self.t0 = time.perf_counter()
         
         self.writer = SummaryWriter(self.outdir)
         
         self._set_random_seed(self.cfg.mainmodel.seed)
         
-        self.exp_stock_size = max[self.cfg.mainmodel.train_frq, self.cfg.mainmodel.exp_num_use]
 
         for comp in self.cfg.model.comp.values():
             if len(comp.params) > 0:
@@ -43,44 +44,30 @@ class MLPipeline:
                 comp._params_curr = None
 
                 
-    def add_step_log(self):
+    def add_step(self):
         self.__step = self.__step + 1
-        self.__step_sum = self.__step_sum + 1
+        self._step_sum = self._step_sum + 1
+        if self.cfg.mainmodel.max_train_step < self._step_sum:
+            self.done_epsd = True
         
-        if not(self.cfg.mainmodel.epsd_train) & self.__step_sum % self.cfg.mainmodel.train_frq == 0:
-            return True
-        else:
-            return False
         
     def reset_step(self):
         self.__step = 0
         
-    def add_epsd_log(self):
-        self.__epsd = self.__epsd + 1
+    def add_epsd(self):
+        self._epsd = self._epsd + 1
+    
+    def train_log(self):
+        if self._train_sum % self.cfg.mainmodel.log_interval == 0:
+            print(f'[Train] {self._epsd}epsd {self._step_sum}step ({time.perf_counter() - t0:.0f}s)')
         
-        if self.cfg.mainmodel.epsd_train & self.__epsd % self.cfg.mainmodel.train_frq == 0:
+    def do_train(self):
+        if self._step_sum % self.cfg.mainmodel.train_frq == self.cfg.mainmodel.exp_num_use-1 and self.__step > self.cfg.mainmodel.train_frq:
+            self._train_sum = self._train_sum + 1
             return True
         else:
             return False
         
-    def do_trian(self):
-        if not(self.cfg.mainmodel.epsd_train) and (self.__step_sum-1) % self.cfg.mainmodel.train_frq == 0 and not(self.__step > self.exp_stock_size):
-            return True
-        elif self.cfg.mainmodel.epsd_train and (self.__epsd-1) % self.cfg.mainmodel.train_frq == 0 and not(self.__step == 0):
-            return True
-        else:
-            return False
-        
-        
-    def print_elap_time(self):
-        """学習開始からの時間を表示
-        """
-        print(f'[Elapsed time] {self.__epsd}epsd {self.__step_sum}step ({time.perf_counter() - t0:.0f}s)')
-                
-    def take_val_log(self, args, x_axis='step_sum'):
-        x_ax = self.epsd if x_axis == 'epsd' else self.step_sum
-
-        self.writer.add_scalar('auto_reco/lr', lr, x_ax)
     
     def load_model(self, model, name):
         pass
@@ -90,6 +77,14 @@ class MLPipeline:
         snapshot_name_prefix = self.outdir + name + self.epsd + self.step
         model.save_state_dict(snapshot_name_prefix)
         print(f'[Snapshot] {snapshot_name_prefix}')
+
+    def run_opt(self, loss):
+        for opt in self.cfg.opt.values():
+            if not opt._module==None:
+                opt._module.zero_grad(set_to_none=True)
+                self.scaler.scale(loss).backward()#TODO: retain_graph=Trueは必要か？
+                self.scaler.step(opt._module)
+                self.scaler.update()
 
     def _setup_model_params(self):
         for comp in self.cfg.model.comp.values():
@@ -158,7 +153,7 @@ class MLPipeline:
         return wrap
 
     def epsd_finish_training(self):###############
-        return self.__epsd == self.cfg.mainmodel.max_epsd
+        return self._epsd == self.cfg.mainmodel.max_train_epsd or self.done_epsd
 
     # def train_epsd(self):
     #     raise Exception()

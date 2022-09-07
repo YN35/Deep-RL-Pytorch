@@ -1,6 +1,10 @@
+import time
+import random
+
 import torch
 
 from ...mlpipeline import MLPipeline
+from ...experience import Epx
 
 
 class DQN(MLPipeline):
@@ -9,6 +13,7 @@ class DQN(MLPipeline):
 
         self._setup_model_params()
         self._setup_optimizer()
+        self.exp = Epx(device=self.cfg.model._device, profile_name='DQN', exp_buffer_size=self.cfg.mainmodel.train_frq+self.cfg.mainmodel.exp_num_use)
         
 
     def finish_training(self):
@@ -16,45 +21,61 @@ class DQN(MLPipeline):
 
     @MLPipeline._train_mode
     def train_epsd(self):
+        """Train the model for one episode."""
         
         obs = self.cfg.env._module.reset()
         network = self.cfg.model.comp.get('q_net')._module
-        result = {}
 
         while True:
             obs = torch.from_numpy(obs).to(self.cfg.model._device)
             with torch.cuda.amp.autocast(enabled=self.cfg.mainmodel.enable_fp16):
                 
                 Q_val = network(obs)
-                act = Q_val.argmax()
+                if random.random() < self.cfg.mainmodel.random_act_prob:
+                    act = random.randint(0, int(self.cfg.mainmodel.act_space - 1))
+                    act = torch.tensor(act).to(self.cfg.model._device)
+                else:      
+                    act = Q_val.argmax()
                 
                 obs, reward, done, info = self.cfg.env._module.step(act)
-                if done:
-                    break
                 
-                experience = 
+                #update experience buffer
+                self.exp.roll()
+                self.exp.rewards[0] = reward
+                self.exp.done[0] = done
+                self.exp.esti_qmax[0] = Q_val[act]
+
+            if self.do_train():
+                with torch.cuda.amp.autocast(enabled=self.cfg.mainmodel.enable_fp16):
+                    target_q_val = self.exp.rewards[1:] + self.cfg.mainmodel.discount_rate * self.exp.esti_qmax[:-1].detach() * (1 - self.exp.done[1:].type(torch.uint8))
+                    loss = ((self.exp.esti_qmax[1:] - target_q_val) ** 2).mean()
+                    
+                    self.exp.esti_qmax = torch.empty(self.cfg.mainmodel.train_frq+self.cfg.mainmodel.exp_num_use).to(self.cfg.model._device)
                 
-                if do_train:
+                self.run_opt(loss)
 
-                    loss_recon_ = self.cfg.model._loss['recon'](rgb_, image_).mean()
-                    loss_ = loss_recon_
                 
-                do_train = self.add_step_log(step_log)
-
-        if do_train:
-            self.cfg.model._optimizer.zero_grad(set_to_none=True)
-            self.scaler.scale(loss_).backward()
-            self.scaler.step(self.cfg.model._optimizer)
-            self.scaler.update()
-
-        result['dpts'] = 1
-        result['loss'] = loss_.item()
-        result['loss_terms'] = {
-            'mse': loss_recon_.item(),
-            'psnr': -10*torch.log10(loss_recon_).item(),
-        }
+                
+                if self._train_sum % self.cfg.log.bord.train == 0:
+                    self.writer.add_scalar('train_reco/loss', loss, self._train_sum)
+                    self.writer.add_scalar('train_reco/buffa_reward', self.exp.rewards.sum(), self._train_sum)
+                if self._train_sum % self.cfg.log.print.train == 0:
+                    print(f'[Train] ({time.perf_counter() - self.t0:.0f}s) {self._train_sum}train {self._epsd}epsd {self._step_sum}step {loss}loss')
             
-        return epsd_log
+            if self._step_sum % self.cfg.log.bord.step == 0:
+                self.writer.add_scalar('step_reco/time', time.perf_counter() - self.t0, self._step_sum)
+            if self._step_sum % self.cfg.log.print.step == 0:
+                print(f'[Step {self._step_sum/self.cfg.mainmodel.max_train_step}] --{self._step_sum}/{self.cfg.mainmodel.max_train_step}-- ({time.perf_counter() - self.t0:.0f}s)')
+                
+            
+            self.add_step()
+            if done or self.cfg.mainmodel.max_train_step < self._step_sum:
+                break
+        
+        if self._epsd % self.cfg.log.bord.epsd == 0:
+            self.writer.add_scalar('step_reco/epsd_reward', self.cfg.env._module.epsd_reward, self._step_sum)
+        if self._epsd % self.cfg.log.print.epsd == 0:
+            print(f'[Epsd {self._step_sum/self.cfg.mainmodel.max_train_epsd}] --{self._epsd}/{self.cfg.mainmodel.max_train_epsd}-- {self.cfg.env._module.epsd_reward}reward {self.cfg.env._module.epsd_step}step(fin) {self._step_sum}step')
 
     @MLPipeline._eval_mode
     def eval_epsd(self):
